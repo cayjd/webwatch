@@ -14,7 +14,7 @@ import           Control.Monad.Reader    (ReaderT, ask, runReaderT)
 import           Control.Monad.State     (StateT, evalStateT, state)
 import           Control.Monad.Trans     (liftIO)
 import           Control.Concurrent      (threadDelay)
-import           Control.Monad           (forever, unless)
+import           Control.Monad           (forever, unless, when)
 import           System.IO               (hPutStrLn, stderr)
 
 import WebWatch.GetLinks
@@ -24,6 +24,7 @@ data Config = Config
     , cUrl             :: T.Text
     , cInterval        :: Int
     , cSlackWebhookUrl :: T.Text
+    , cFilename        :: T.Text
     } deriving (Show)
 
 parseConfig :: C.Config -> IO Config
@@ -31,7 +32,8 @@ parseConfig conf = C.require conf "patterns" >>= (\cPatterns ->
     C.require conf "url" >>= (\cUrl ->
     C.require conf "interval" >>= (\cInterval ->
     C.require conf "slack.webhook_url" >>= (\cSlackWebhookUrl ->
-    return Config {cPatterns=cPatterns, cUrl=cUrl, cInterval=cInterval, cSlackWebhookUrl=cSlackWebhookUrl}))))
+    C.require conf "filename" >>= (\cFilename ->
+    return Config {cPatterns=cPatterns, cUrl=cUrl, cInterval=cInterval, cSlackWebhookUrl=cSlackWebhookUrl, cFilename=cFilename})))))
 
 type LinkSet = HS.HashSet T.Text
 type WebWatchM = ReaderT Config (StateT LinkSet IO)
@@ -53,6 +55,8 @@ watchOnce = ask >>= (\config ->
     ((state $ addLinks links) >>= (\newLinks -> slog $ "New Links: " ++ (show newLinks))) >>
     -- TODO: Send message
     (slog $ "Sleeping " ++ show (cInterval config) ++ " microsecond(s)") >>
+    (liftIO $ writeLinks config links) >>
+
     (liftIO $ threadDelay (cInterval config))))
 
 main :: IO ()
@@ -73,3 +77,6 @@ showConfig config =
 webWatch :: Config -> IO ()
 webWatch config =
     evalStateT (runReaderT (forever watchOnce) config) HS.empty
+
+writeLinks :: Config -> [Link] -> IO ()
+writeLinks config links = writeFile (T.unpack $ cFilename config) (show links)
