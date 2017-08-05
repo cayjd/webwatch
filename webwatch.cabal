@@ -27,6 +27,8 @@ executable webwatch-exe
                      , webwatch
                      , text
                      , configurator
+                     , unordered-containers
+                     , mtl
   default-language:    Haskell2010
 
 test-suite webwatch-test
