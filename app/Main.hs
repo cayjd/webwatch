@@ -13,7 +13,11 @@ import qualified Data.HashSet as HS
 import           Control.Monad.Reader    (ReaderT, ask, runReaderT)
 import           Control.Monad.State     (StateT, evalStateT, state)
 import           Control.Monad.Trans     (liftIO)
+import           Control.Concurrent      (threadDelay)
+import           Control.Monad           (forever, unless)
 import           System.IO               (hPutStrLn, stderr)
+
+import WebWatch.GetLinks
 
 data Config = Config
     { cPatterns        :: [T.Text]
@@ -29,21 +33,43 @@ parseConfig conf = C.require conf "patterns" >>= (\cPatterns ->
     C.require conf "slack.webhook_url" >>= (\cSlackWebhookUrl ->
     return Config {cPatterns=cPatterns, cUrl=cUrl, cInterval=cInterval, cSlackWebhookUrl=cSlackWebhookUrl}))))
 
-main :: IO ()
-main = getArgs >>= (\args ->
-    case args of
-        [confPath] -> showConfigFromPath confPath
-        _ -> putStrLn "Usage: webwatch CONFIG" >>
-            exitFailure)
-
-showConfigFromPath :: String -> IO ()
-showConfigFromPath confPath = C.load [C.Required confPath] >>= (\cConfig ->
-    parseConfig cConfig >>= (\config ->
-    putStrLn "Got a config file:" >>
-    putStrLn (show config)))
-
 type LinkSet = HS.HashSet T.Text
 type WebWatchM = ReaderT Config (StateT LinkSet IO)
 
 slog :: String -> WebWatchM ()
 slog msg = liftIO $ hPutStrLn stderr msg
+
+addLinks :: [Link] -> LinkSet -> ([Link], LinkSet)
+addLinks links set =
+    (new, HS.union set (HS.fromList $ map lHref new))
+  where
+    new = filter (\l -> not $ (lHref l) `HS.member` set) links
+
+watchOnce :: WebWatchM ()
+watchOnce = ask >>= (\config ->
+    (slog $ "Getting links from " ++ T.unpack (cUrl config)) >>
+    (liftIO $ getMatchingLinks (cPatterns config) (cUrl config)) >>= (\links ->
+    (slog $ "All matching links: " ++ show links) >>
+    ((state $ addLinks links) >>= (\newLinks -> slog $ "New Links: " ++ (show newLinks))) >>
+    -- TODO: Send message
+    (slog $ "Sleeping " ++ show (cInterval config) ++ " microsecond(s)") >>
+    (liftIO $ threadDelay (cInterval config))))
+
+main :: IO ()
+main = getArgs >>= (\args ->
+    case args of
+        [confPath] -> C.load [C.Required confPath] >>= 
+            parseConfig >>= 
+            (\c -> (showConfig c >> webWatch c))
+
+        _ -> putStrLn "Usage: webwatch CONFIG" >>
+            exitFailure)
+
+showConfig :: Config -> IO ()
+showConfig config = 
+    putStrLn "Got a config file:" >>
+    putStrLn (show config)
+
+webWatch :: Config -> IO ()
+webWatch config =
+    evalStateT (runReaderT (forever watchOnce) config) HS.empty

@@ -15,8 +15,14 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     WebWatch.GetLinks
   build-depends:       base >= 4.7 && < 5
+                     , network
+                     , text
+                     , configurator
+                     , http-conduit
+                     , network-uri
+                     , tagsoup
   default-language:    Haskell2010
 
 executable webwatch-exe
