@@ -66,9 +66,7 @@ watchOnce = do
     slog $ "Getting links from: " ++ T.unpack cUrl
     slog $ "with patterns: " ++ show cPatterns
     slog $ "with IO file: " ++ T.unpack cFile
-    slog $ "with interval (in min): " ++ show cInterval    
-
-    -- TODO give more info
+    slog $ "with interval (in min): " ++ show cInterval
 
     -- Fetch the links
     links <- liftIO $ getMatchingLinks cPatterns cUrl
