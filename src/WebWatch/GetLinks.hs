@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module WebWatch.GetLinks
     ( Link (..)
+    , parseLink
     , getMatchingLinks
     ) where
 
@@ -22,6 +23,14 @@ data Link = Link
     , lHref  :: !T.Text
     } deriving (Show)
 
+parseLink :: T.Text -> Link
+parseLink link = Link lTitle lHref
+  where
+    lTitle = T.takeWhile (/= '"') $ T.tail $ T.dropWhile (/= '"') link
+    lHref = T.takeWhile (/= '"')
+            $ T.tail $ T.dropWhile (/= '"')
+            $ T.tail $ T.dropWhile (/= '"')
+            $ T.tail $ T.dropWhile (/= '"') link
 
 
 getMatchingLinks
